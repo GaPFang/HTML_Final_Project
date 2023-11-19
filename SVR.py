@@ -40,15 +40,15 @@ for r in range(repeat):
                         y_train = []
                         x_val = []
                         y_val = []
-                        for j in range(5):
-                            if j == v:
-                                for k in range(int(N/5)):
-                                    x_val.append(x_all[fold[j][k]])
-                                    y_val.append(y_all[fold[j][k]])
+                        for a in range(5):
+                            if a == v:
+                                for b in range(int(N/5)):
+                                    x_val.append(x_all[fold[a][b]])
+                                    y_val.append(y_all[fold[a][b]])
                             else:
-                                for k in range(int(N/5)):
-                                    x_train.append(x_all[fold[j][k]])
-                                    y_train.append(y_all[fold[j][k]])
+                                for b in range(int(N/5)):
+                                    x_train.append(x_all[fold[a][b]])
+                                    y_train.append(y_all[fold[a][b]])
                         prob = svm_problem(y_train, x_train)
                         m = svm_train(prob, param)
                         p_label, p_acc, p_val = svm_predict(y_val, x_val, m)
