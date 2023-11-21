@@ -6,98 +6,85 @@ import os
 import sys
 import random
 import matplotlib.pyplot as plt
-from time import sleep
+from collections import OrderedDict
 
+def calError(y, y_hat):
+    return np.sum(np.abs(y - y_hat)) / len(y)
+
+fold = 1000
 total_day = 23 + 16
 total_time = 72
 total_station = 1322
-N = total_day * total_day * total_station
+N = 3704832
 
-repeat = 1
+repeat = 10
 
 y_all, x_all = svm_read_problem("train.txt")
+x_all = x_all[:N]
+y_all = y_all[:N]
 
-C = [0.1, 1, 10, 100, 1000]
-gamma = [0.1, 1, 10, 100, 1000]
-epsilon = [0.1, 1, 10, 100, 1000]
+C = [10, 100, 1000]
+gamma = [1, 10, 100]
+epsilon = [0.01, 0.1, 1]
 
 # print("C = " + str(C) + ", gamma = " + str(gamma) + ", epsilon = " + str(epsilon))
 
-f = open("result.txt", "w")
-E_CV = np.zeros((5, 5, 5)).tolist()
-read_pipe = np.zeros((5, 5, 5)).tolist()
-for r in range(repeat):
-    mess = np.random.permutation(N).tolist()
-    fold = [mess[:int(N/5)]] + [mess[int(N/5):int(2 * N/5)]] + [mess[int(2 * N/5):int(3 * N/5)]] + [mess[int(3 * N/5):int(4 * N/5)]] + [mess[int(4 * N/5):N]]
-    for i in range(5):
-        for j in range(5):
-            for k in range(5):
-                param = svm_parameter('-s 3 -t 2 -c ' + str(C[i]) + ' -g ' + str(gamma[j]) + ' -p ' + str(epsilon[k]) + ' -q')
-                pid = os.fork()
-                if pid == 0:
-                    for v in range(5):
+proFd = open("progress.txt", "w")
+read_pipe = np.zeros((len(C), len(gamma), len(epsilon))).tolist()
+mess = np.random.permutation(N).tolist()
+folds = []
+read_pipe = np.zeros((len(C), len(gamma), len(epsilon))).tolist()
+for v in range(fold):
+    folds.append(mess[int(v * N / fold):int((v + 1) * N / fold)])
+for i in range(len(C)):
+    for j in range(len(gamma)):
+        for k in range(len(epsilon)):
+            param = svm_parameter('-s 3 -t 2 -c ' + str(C[i]) + ' -g ' + str(gamma[j]) + ' -p ' + str(epsilon[k]) + ' -q')
+            r, w = os.pipe()
+            pid = os.fork()
+            if pid == 0:
+                E_CV = 0
+                os.close(r)
+                for r in range(repeat):
+                    np.random.seed(np.random.seed(r))
+                    for v in range(fold):
                         x_train = []
                         y_train = []
                         x_val = []
                         y_val = []
-                        for a in range(5):
+                        for a in range(fold):
                             if a == v:
-                                for b in range(int(N/5)):
-                                    x_val.append(x_all[fold[a][b]])
-                                    y_val.append(y_all[fold[a][b]])
+                                for b in range(int(N/fold)):
+                                    x_val.append(x_all[folds[a][b]])
+                                    y_val.append(y_all[folds[a][b]])
                             else:
-                                for b in range(int(N/5)):
-                                    x_train.append(x_all[fold[a][b]])
-                                    y_train.append(y_all[fold[a][b]])
+                                for b in range(int(N/fold)):
+                                    x_train.append(x_all[folds[a][b]])
+                                    y_train.append(y_all[folds[a][b]])
                         prob = svm_problem(y_train, x_train)
                         m = svm_train(prob, param)
-                        p_label, p_acc, p_val = svm_predict(y_val, x_val, m)
-                        # E_CV[i][j][k] += v
-                        E_CV[i][j][k] += (100 - p_acc[0]) / 100
-                    E_CV[i][j][k] /= 5
-                    f.write("C = " + str(C[i]) + ", gamma = " + str(gamma[j]) + ", epsilon = " + str(epsilon[k]) + ", E_CV = " + str(E_CV[i][j][k]) + "\n")
-                    sys.exit(0)
+                        # p_label, p_acc, p_val = svm_predict(y_val, x_val, m)
+                        # E_CV += v
+                        # E_CV += p_acc[1]
+                        proFd.write("i, j, k, v = " + str(i) + ", " + str(j) + ", " + str(k) + ", " + str(v) + "\n")
+                        proFd.flush()
+                proFd.close()
+                E_CV /= (repeat * fold)
+                os.write(w, str(E_CV).encode('utf-8'))
+                os._exit(0)
+            os.close(w)
+            read_pipe[i][j][k] = r
+
+result = {}
+for i in range(len(C)):
+    for j in range(len(gamma)):
+        for k in range(len(epsilon)):
+            E_CV = float(os.read(read_pipe[i][j][k], 100).decode('utf-8'))
+            result.update({E_CV: [C[i], gamma[j], epsilon[k]]})
+result = OrderedDict(sorted(result.items()))
+max_key_length = max(len(str(key)) for key in result)
+
+f = open("result.txt", "w")
+for i in result:
+    f.write("E_CV: " + str(i).ljust(max_key_length) + " C: " + str(result[i][0]) + " gamma: " + str(result[i][1]) + " epsilon: " + str(result[i][2]) + "\n")
 f.close()
-
-
-# E_CV = np.zeros((5, 5, 5)).tolist()
-# for i in range(5):
-#     for j in range(5):
-#         for k in range(5):
-#             param = svm_parameter('-s 3 -t 2 -c ' + str(C[i]) + ' -g ' + str(gamma[j]) + ' -p ' + str(epsilon[k]) + ' -q')
-#             for r in range(repeat):
-#                 mess = np.random.permutation(N).tolist()
-#                 fold = [mess[:int(N/5)]] + [mess[int(N/5):int(2 * N/5)]] + [mess[int(2 * N/5):int(3 * N/5)]] + [mess[int(3 * N/5):int(4 * N/5)]] + [mess[int(4 * N/5):N]]
-#                 for v in range(5):
-#                     x_train = []
-#                     y_train = []n = []
-#                     y_train = []
-#                     x_val = []
-#                     y_val = []
-#                     for j in range(5):
-#                         if j == v:
-#                             for k in range(int(N/5)):
-#                                 x_val.append(x_all[fold[j][k]])
-#                                 y_val.append(y_all[fold[j][k]])
-#                         else:
-#                             for k in range(int(N/5)):
-#                                 x_train.append(x_all[fold[j][k]])
-#                                 y_train.append(y_all[fold[j][k]])
-#                     prob = svm_problem(y_train, x_train)
-#                     x_val = []
-#                     y_val = []
-#                     for j in range(5):
-#                         if j == v:
-#                             for k in range(int(N/5)):
-#                                 x_val.append(x_all[fold[j][k]])
-#                                 y_val.append(y_all[fold[j][k]])
-#                         else:
-#                             for k in range(int(N/5)):
-#                                 x_train.append(x_all[fold[j][k]])
-#                                 y_train.append(y_all[fold[j][k]])
-#                     prob = svm_problem(y_train, x_train)
-#                     m = svm_train(prob, param)
-#                     p_label, p_acc, p_val = svm_predict(y_val, x_val, m)
-#                     E_CV[i][j][k] += ((1 - p_acc[0]) / 100)
-#             E_CV[i][j][k] /= (5 * repeat)
-#             print("C = " + str(C[i]) + ", gamma = " + str(gamma[j]) + ", epsilon = " + str(epsilon[k]) + ", E_CV = " + str(E_CV[i][j][k]) + "\n")
