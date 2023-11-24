@@ -15,10 +15,14 @@ def calWeek(date):
     return (day + 6) % 7
 
 stationList = []
-f = open("./html.2023.final.data/demographic.json", "r")
-data = json.load(f)
-for station in data:
-    stationList.append(station)
+# f = open("./html.2023.final.data/demographic.json", "r")
+# data = json.load(f)
+# for station in data:
+#     stationList.append(station)
+# f.close()
+f = open("./html.2023.final.data/sno_test_set.txt", "r")
+for line in f:
+    stationList.append(line[:-1])
 f.close()
 
 train_x = []
@@ -37,7 +41,7 @@ for i in range(len(stationList)):
         f.close()
         flag = False
         for time in data:
-            if int(time[3:]) % 20 == 0:
+            if int(time[3:]) % 10 == 0:
                 flag = False
             if flag:
                 continue
@@ -65,13 +69,11 @@ for i in range(len(train_x)):
             f[i].write(str(k) + ":" + str(train_x[i][j][k]) + " ")
         f[i].write("\n")
 
-for i in range(len(stationList) - 1, 1, -1):
+stationFd = open("./stationList.txt", "w")
+for i in range(len(stationList)):
     f[i].close()
     if os.path.getsize("train/train_" + stationList[i] + ".txt") == 0:
         os.remove("train/train_" + stationList[i] + ".txt")
-        stationList.pop(i)
-
-f = open("./stationList.txt", "w")
-for station in stationList:
-    f.write(station + "\n")
-f.close()
+    else :
+        stationFd.write(stationList[i] + " " + str(train_x[i][0][3]) + "\n")
+stationFd.close()
