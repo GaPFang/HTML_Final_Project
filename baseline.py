@@ -42,6 +42,7 @@ for date in tqdm(date_directory):
                 continue
             time = int((datetime.strptime(time_slot, '%H:%M') - datetime.strptime('00:00', '%H:%M')).total_seconds() / 60)
             station_data[station][day][time].append(slot_data['sbi'])
+print("calculating means")
 
 station_mean = {key: [[0 for j in range(24*60)] for i in range(7)] for key, value in station_data.items()}
 for station in list(station_data):
@@ -50,11 +51,24 @@ for station in list(station_data):
             if len(station_data[station][i][j]) != 0:
                 station_mean[station][i][j] = np.mean(station_data[station][i][j])
 
-# station_mean = {key: [[np.mean(value[i][j]) for j in range(24*60)] for i in range(7)] for key, value in station_data.items()}
+print("means have been calculated")
 
-print(station_mean['500101001'][0])
-
-for station, data in tqdm(station_mean.items()):
-    with open('baseline_'+station, 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerows(station_mean[station])
+predict_days = [(datetime(2023, 10, 21) + timedelta(days=i)).strftime('%Y%m%d') for i in range(4)] + [(datetime(2023, 12, 4) + timedelta(days=i)).strftime('%Y%m%d') for i in range(7)]
+with open('baseline.csv', 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow(['id', 'sbi'])
+    for date in tqdm(predict_days):
+        day = (datetime.strptime(date, '%Y%m%d')).weekday()
+        with open('sno_test_set.txt', 'r') as file:
+            for station in tqdm(file, leave=False):
+                station = station.replace('\n', '')
+                for t in range(24*3):
+                    time = (datetime.strptime(date, "%Y%m%d")+timedelta(minutes=t*20)).strftime('%H:%M')
+                    predict = station_mean[station][day][t*20]
+                    id = date+'_'+station+'_'+time
+                    writer.writerow([id, predict])
+        
+# for station, data in tqdm(station_mean.items()):
+#     with open('baseline_'+station, 'w', newline='') as csvfile:
+#         writer = csv.writer(csvfile)
+#         writer.writerows(station_mean[station])
